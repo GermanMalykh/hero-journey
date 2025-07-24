@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Путь героя в команде</title>
+    <style>
+    body {
+      background-color: #0d1b2a;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      padding: 0;
+    }
+    canvas {
+      image-rendering: pixelated;
+      background-color: #0d1b2a;
+    }
+    #startScreen {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 30px;
+      width: 100%;
+      max-width: 900px;
+    }
+    #gameCanvas { border: 2px solid #fff; background: #B9A460; display: none; width: 1400px; height: 1050px; }
+    #locationScreen {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: #0d1b2a;
+      justify-content: center;
+      align-items: center;
+      z-index: 10;
+    }
+    #locationImage {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      display: none; /* Скрываем до загрузки */
+    }
+    #locationCanvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 1400px;
+      height: 1050px;
+      background: transparent; /* Устанавливаем прозрачный фон */
+      z-index: 11; /* Над #locationImage */
+    }
+    #locationDialog {
+      width: 300px;
+      height: 100px;
+      border: 1px solid #fff;
+      padding: 10px;
+      background: rgba(255, 255, 255, 0.8);
+      color: #000;
+      text-align: center;
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 12;
+    }
+    #goalInput { margin-top: 10px; padding: 5px; display: none; }
+    .title {
+      font-family: 'Press Start 2P', cursive;
+      font-size: 36px;
+      color: #FFD700;
+      text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+      text-align: center;
+      margin-bottom: 30px;
+      width: 100%;
+    }
+    .character-container {
+      display: flex;
+      justify-content: center;
+      gap: 75px;
+    }
+    .character-label {
+      font-family: 'Press Start 2P', cursive;
+      font-size: 18px;
+      color: #fff;
+      text-align: center;
+      margin-top: 15px;
+    }
+    #loader {
+      display: none;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-family: 'Press Start 2P', cursive;
+      font-size: 24px;
+      color: #FFD700;
+      text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+      z-index: 13;
+    }
+    #exitButton {
+      display: none;
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 10px 20px;
+      font-family: 'Press Start 2P', cursive;
+      font-size: 18px;
+      color: #000;
+      background-color: #FFD700;
+      border: 2px solid #000;
+      text-shadow: -1px -1px 0 #FFD700, 1px -1px 0 #FFD700, -1px 1px 0 #FFD700, 1px 1px 0 #FFD700;
+      cursor: pointer;
+      z-index: 14;
+    }
+    #exitButton:hover {
+      background-color: #FFC107; /* Лёгкое затемнение при наведении */
+    }
+    #questionModal {
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 400px;
+      padding: 20px;
+      background: rgba(255, 255, 255, 0.9);
+      border: 2px solid #FFD700;
+      color: #000;
+      font-family: 'Press Start 2P', cursive;
+      font-size: 16px;
+      text-align: center;
+      z-index: 15;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+    }
+    #closeQuestion {
+      margin-top: 10px;
+      padding: 5px 10px;
+      font-family: 'Press Start 2P', cursive;
+      font-size: 14px;
+      color: #000;
+      background-color: #FFD700;
+      border: 2px solid #000;
+      cursor: pointer;
+    }
+    #closeQuestion:hover {
+      background-color: #FFC107;
+    }
+  </style>
+</head>
+<body>
+<div id="startScreen" style="display: block;">
+    <div class="title">RPG квест:<br>«Путь героя в команде»</div>
+    <div class="character-container">
+        <canvas id="knightCanvas" width="144" height="216"></canvas>
+        <canvas id="princessCanvas" width="144" height="216"></canvas>
+    </div>
+    <div class="character-label">Управляй стрелками (или WASD). Двигайся к зонам для вопросов!</div>
+</div>
+<canvas id="gameCanvas" width="1400" height="1050"></canvas>
+<div id="locationScreen">
+    <img id="locationImage" alt="">
+    <canvas id="locationCanvas" width="1400" height="1050"></canvas>
+    <div id="locationDialog"></div>
+    <div id="loader"></div>
+    <button id="exitButton">Вернуться к карте</button>
+</div>
+<div id="questionModal">
+    <p id="questionText"></p>
+    <button id="closeQuestion">Закрыть</button>
+</div>
+<input type="text" id="goalInput" placeholder="Ваша главная цель/ожидание" />
+<script>
+    let gameStarted = false;
+    let character = null;
+    let animationStep = 0;
+    const animationSequence = [0, 1, 2, 1, 0]; // Цикл: Кадр 1 → 2 → 3 → 2 → 1
+    let animationIndex = 0;
+    let locationAnimationFrame = 0;
+    const locationAnimationSequence = [1, 0, 1, 2, 1, 0]; // Цикл: forest2 → forest1 → forest2 → forest3 → forest2 → forest1
+    let animationInterval = null;
+    let fieldAnimationTimeout = null; // Таймаут для анимации на поле
+    let mapAnimationFrame = 0;
+    const mapAnimationSequence = [0, 1, 2]; // Цикл: map1 → map2 → map3
+    let mapAnimationInterval = null;
+    let loaderInterval = null;
+    let currentZone = null; // Для отслеживания текущей локации
+    let interactionPoint = { x: 0, y: 0, radius: 20 }; // Координаты и радиус точки взаимодействия
+    const scrollImage = new Image(); // Изображение скролла
+
+    // Отрисовка анимированных персонажей на стартовом экране
+    const knightCanvas = document.getElementById("knightCanvas");
+    const knightCtx = knightCanvas.getContext("2d");
+    const princessCanvas = document.getElementById("princessCanvas");
+    const princessCtx = princessCanvas.getContext("2d");
+
+    const knightFrames = [
+      new Image(),
+      new Image(),
+      new Image()
+    ];
+    const princessFrames = [
+      new Image(),
+      new Image(),
+      new Image()
+    ];
+
+    knightFrames[0].src = 'gameCanvas/heroes/knight/knight1.png';
+    knightFrames[1].src = 'gameCanvas/heroes/knight/knight2.png';
+    knightFrames[2].src = 'gameCanvas/heroes/knight/knight3.png';
+
+    princessFrames[0].src = 'gameCanvas/heroes/princess/princess1.png';
+    princessFrames[1].src = 'gameCanvas/heroes/princess/princess2.png';
+    princessFrames[2].src = 'gameCanvas/heroes/princess/princess3.png';
+
+    const forestFrames = [
+      new Image(),
+      new Image(),
+      new Image()
+    ];
+
+    forestFrames[0].src = 'gameCanvas/locations/forest/forest1.png';
+    forestFrames[1].src = 'gameCanvas/locations/forest/forest2.png';
+    forestFrames[2].src = 'gameCanvas/locations/forest/forest3.png';
+
+    const mapFrames = [
+      new Image(),
+      new Image(),
+      new Image()
+    ];
+
+    mapFrames[0].src = 'gameCanvas/locations/map/map1.png';
+    mapFrames[1].src = 'gameCanvas/locations/map/map2.png';
+    mapFrames[2].src = 'gameCanvas/locations/map/map3.png';
+
+    let allImagesLoaded = false;
+    let loadedCount = 0;
+
+    function checkImagesLoaded() {
+      loadedCount++;
+      if (loadedCount === 13) { // 3 кадра для каждого персонажа + 3 для леса + 3 для карты + 1 для скролла
+        allImagesLoaded = true;
+        animateStartScreen();
+      }
+    }
+
+    knightFrames.forEach(img => img.onload = checkImagesLoaded);
+    princessFrames.forEach(img => img.onload = checkImagesLoaded);
+    forestFrames.forEach(img => img.onload = checkImagesLoaded);
+    mapFrames.forEach(img => img.onload = checkImagesLoaded);
+    scrollImage.onload = checkImagesLoaded;
+    scrollImage.src = 'gameCanvas/items/question/Scroll1.png'; // Загружаем изображение скролла
+
+    function drawKnightFrame() {
+      if (!allImagesLoaded) return;
+      knightCtx.clearRect(0, 0, 144, 216);
+      knightCtx.drawImage(knightFrames[animationSequence[animationIndex]], 0, 0, 140, 180);
+    }
+
+    function drawPrincessFrame() {
+      if (!allImagesLoaded) return;
+      princessCtx.clearRect(0, 0, 144, 216);
+      princessCtx.drawImage(princessFrames[animationSequence[animationIndex]], 0, 0, 140, 180);
+    }
+
+    function animateStartScreen() {
+      if (!allImagesLoaded) return;
+      drawKnightFrame();
+      drawPrincessFrame();
+      animationIndex = (animationIndex + 1) % animationSequence.length;
+      setTimeout(animateStartScreen, 300);
+    }
+
+    document.getElementById("knightCanvas").addEventListener("click", () => selectCharacter("knight"));
+    document.getElementById("princessCanvas").addEventListener("click", () => selectCharacter("princess"));
+
+    function selectCharacter(sex) {
+      character = sex;
+      document.getElementById("startScreen").style.display = "none";
+      document.getElementById("gameCanvas").style.display = "block";
+      startGame();
+    }
+
+    const gameCanvas = document.getElementById("gameCanvas");
+    const gameCtx = gameCanvas.getContext("2d");
+    let playerX = 50;
+    let playerY = 300;
+    const playerSpeed = 7.5; // Увеличена скорость в 1.5 раза, можно корректировать здесь
+    let playerImg = null;
+    let animationIndexField = 0; // Индекс анимации стояния на поле
+
+    const zones = {
+      forest: { x: 315, y: 540, w: 420, h: 70, question: "Какие задачи кажутся тебе размытыми или плохо сформулированными?", bgFrames: forestFrames, interactionPoint: { x: 525, y: 575, scrollX: 855, scrollY: 580 } },
+      motivation_cave: { x: 44, y: 630, w: 200, h: 70, question: "Чего тебе не хватает, чтобы быть более вовлечённым?", bg: "gameCanvas/locations/motivation_cave.png", interactionPoint: { x: 144, y: 665, scrollX: 144, scrollY: 665 } },
+      blocker_cave: { x: 820, y: 780, w: 280, h: 70, question: "Что мешает тебе работать эффективно?", bg: "gameCanvas/locations/blocker_cave.png", interactionPoint: { x: 960, y: 815, scrollX: 960, scrollY: 815 } },
+      feedback_temple: { x: 900, y: 250, w: 280, h: 70, question: "Что ты хотел бы изменить в команде или в моём подходе?", bg: "gameCanvas/locations/feedback_temple.png", interactionPoint: { x: 1040, y: 285, scrollX: 1040, scrollY: 285 } }
+    };
+
+    function loadPlayerImage() {
+      playerImg = new Image();
+      playerImg.src = character === "knight" ? 'gameCanvas/heroes/knight/knight1.png' : 'gameCanvas/heroes/princess/princess1.png';
+      playerImg.onload = () => {
+        gameLoop(); // Запускаем игру после загрузки изображения
+      };
+    }
+
+    function drawZones() {
+      gameCtx.globalAlpha = 0; // Прозрачность для всех зон
+      for (let zoneName in zones) {
+        const zone = zones[zoneName];
+        gameCtx.fillStyle = '#000000';
+        gameCtx.fillRect(zone.x, zone.y, zone.w, zone.h);
+      }
+      gameCtx.globalAlpha = 1.0; // Восстанавливаем прозрачность
+      if (currentZone) {
+        const zone = zones[currentZone];
+        // Отрисовка скролла перенесена в locationCanvas
+      } else {
+        console.log("currentZone не определён"); // Проверка
+      }
+    }
+
+    const locationCanvas = document.getElementById("locationCanvas");
+    const locationCtx = locationCanvas.getContext("2d");
+
+    function drawLocationZones() {
+      locationCtx.clearRect(0, 0, locationCanvas.width, locationCanvas.height); // Очищаем канвас перед отрисовкой
+      if (currentZone && document.getElementById("locationImage").style.display === "block" && document.getElementById("loader").style.display === "none") { // Рисуем только после загрузки фона и исчезновения лоадера
+        const zone = zones[currentZone];
+        locationCtx.drawImage(scrollImage, zone.interactionPoint.scrollX - 50, zone.interactionPoint.scrollY - 50, 100, 100); // Увеличенный размер скролла
+        console.log(`Отрисовка скролла для ${currentZone} в (${zone.interactionPoint.scrollX}, ${zone.interactionPoint.scrollY}) с размером 100x100`); // Отладка
+      } else {
+        console.log("Скролл не отрисован: фон не загружен или лоадер активен");
+      }
+    }
+
+    function startMapAnimation() {
+      if (mapAnimationInterval) clearInterval(mapAnimationInterval);
+      mapAnimationFrame = 0;
+      mapAnimationInterval = setInterval(() => {
+        mapAnimationFrame = (mapAnimationFrame + 1) % mapAnimationSequence.length;
+        draw(); // Обновляем канвас при смене анимации карты
+      }, 900); // 900 мс ≈ 1.11 кадра в секунду
+    }
+
+    function gameLoop() {
+      gameCtx.clearRect(0, 0, gameCanvas.width, gameCanvas.height);
+      draw();
+
+      // Движение персонажа с альтернативой WASD
+      const handleKeyDown = (e) => {
+        if (!gameStarted) return;
+        let moved = false;
+        switch (e.key) {
+          case "ArrowLeft":
+          case "a":
+          case "A":
+            playerX -= playerSpeed;
+            moved = true;
+            break;
+          case "ArrowRight":
+          case "d":
+          case "D":
+            playerX += playerSpeed;
+            moved = true;
+            break;
+          case "ArrowUp":
+          case "w":
+          case "W":
+            playerY -= playerSpeed;
+            moved = true;
+            break;
+          case "ArrowDown":
+          case "s":
+          case "S":
+            playerY += playerSpeed;
+            moved = true;
+            break;
+        }
+        if (moved) {
+          playerX = Math.max(0, Math.min(gameCanvas.width - 120, playerX)); // Обновлено для 120px
+          playerY = Math.max(0, Math.min(gameCanvas.height - 154, playerY)); // Обновлено для 154px
+          checkCollisions();
+          draw(); // Обновляем канвас при движении
+        }
+      };
+
+      document.addEventListener("keydown", handleKeyDown);
+      gameCanvas.addEventListener("click", handleCanvasClick); // Обработчик клика по канвасу
+      startMapAnimation(); // Запускаем анимацию карты
+      gameStarted = true;
+    }
+
+    function draw() {
+      gameCtx.clearRect(0, 0, gameCanvas.width, gameCanvas.height);
+      if (allImagesLoaded) {
+        gameCtx.drawImage(mapFrames[mapAnimationSequence[mapAnimationFrame]], 0, 0, gameCanvas.width, gameCanvas.height); // Анимированный фон карты
+      } else {
+        gameCtx.fillStyle = "#B9A460"; // Зелёный фон как запасной
+        gameCtx.fillRect(0, 0, gameCanvas.width, gameCanvas.height);
+      }
+      drawZones();
+      if (playerImg) {
+        // Анимация стояния на месте с частотой 300 мс
+        if (!fieldAnimationTimeout) {
+          fieldAnimationTimeout = setTimeout(() => {
+            animationIndexField = (animationIndexField + 1) % animationSequence.length;
+            fieldAnimationTimeout = null;
+          }, 300); // Частота как на стартовом экране
+        }
+        const standFrame = character === "knight" ? knightFrames[animationSequence[animationIndexField]] : princessFrames[animationSequence[animationIndexField]];
+        gameCtx.drawImage(standFrame, playerX, playerY, 120, 154); // Уменьшено на 15% (120x154)
+      }
+      requestAnimationFrame(draw);
+    }
+
+    function checkCollisions() {
+      for (let zoneName in zones) {
+        const zone = zones[zoneName];
+        if (playerX + 120 > zone.x && playerX < zone.x + zone.w && // Обновлено для 120px
+            playerY + 154 > zone.y && playerY < zone.y + zone.h) { // Обновлено для 154px
+          console.log(`Соприкосновение с зоной: ${zoneName}, currentZone: ${currentZone}`); // Отладка
+          if (zoneName === "goal_zone") {
+            document.getElementById("locationScreen").style.display = "none";
+            document.getElementById("goalInput").style.display = "block";
+          } else {
+            const locationScreen = document.getElementById("locationScreen");
+            const locationImage = document.getElementById("locationImage");
+            const loader = document.getElementById("loader");
+            const exitButton = document.getElementById("exitButton");
+            locationScreen.style.display = "flex";
+            document.getElementById("locationDialog").textContent = zone.question;
+            loader.style.display = "block"; // Показываем лоадер
+            locationImage.style.display = "none"; // Скрываем изображение до загрузки
+            exitButton.style.display = "block"; // Показываем кнопку
+            startLoaderAnimation(); // Запускаем анимацию лоадера
+            currentZone = zoneName; // Устанавливаем текущую зону
+            console.log(`Установлена зона: ${currentZone}, лоадер активен`); // Отладка
+            if (zoneName === "forest" && zone.bgFrames) {
+              startLocationAnimation(zone.bgFrames);
+            } else if (zone.bg) {
+              const tempImage = new Image();
+              tempImage.onload = () => {
+                locationImage.src = zone.bg;
+                locationImage.style.display = "block"; // Показываем изображение после загрузки
+                stopLoaderAnimation(); // Останавливаем анимацию лоадера
+                loader.style.display = "none"; // Скрываем лоадер
+                drawLocationZones(); // Обновляем канвас локации только после загрузки фона
+              };
+              tempImage.src = zone.bg; // Запускаем загрузку
+            }
+          }
+          break; // Выходим из цикла после первого совпадения
+        }
+      }
+    }
+
+    function startLocationAnimation(frames) {
+      if (animationInterval) clearInterval(animationInterval);
+      locationAnimationFrame = 0;
+      const locationImage = document.getElementById("locationImage");
+      const loader = document.getElementById("loader");
+      const exitButton = document.getElementById("exitButton");
+      loader.style.display = "block"; // Показываем лоадер
+      locationImage.style.display = "none"; // Скрываем изображение до загрузки
+      exitButton.style.display = "block"; // Показываем кнопку
+      startLoaderAnimation(); // Запускаем анимацию лоадера
+      const tempImage = new Image();
+      tempImage.onload = () => {
+        animationInterval = setInterval(() => {
+          if (document.getElementById("locationScreen").style.display === "flex") {
+            locationAnimationFrame = (locationAnimationFrame + 1) % locationAnimationSequence.length;
+            const frameIndex = locationAnimationSequence[locationAnimationFrame];
+            locationImage.src = frames[frameIndex].src;
+            if (locationAnimationFrame === locationAnimationSequence.length - 1) { // После последнего кадра
+              locationImage.style.display = "block"; // Убеждаемся, что фон виден
+              stopLoaderAnimation(); // Останавливаем анимацию лоадера
+              loader.style.display = "none"; // Скрываем лоадер
+              drawLocationZones(); // Рисуем скролл после завершения анимации
+            }
+          }
+        }, 900); // 900 мс ≈ 1.11 кадра в секунду
+      };
+      tempImage.src = frames[0].src; // Запускаем загрузку первого кадра
+    }
+
+    function startLoaderAnimation() {
+      let dotCount = 0;
+      const loader = document.getElementById("loader");
+      loader.textContent = "Рисуем красивый фон";
+      loaderInterval = setInterval(() => {
+        dotCount = (dotCount + 1) % 4; // Цикл 0, 1, 2, 3 точки
+        loader.textContent = `Рисуем красивый фон${'.'.repeat(dotCount)}`;
+      }, 500); // Обновление каждые 500 мс
+    }
+
+    function stopLoaderAnimation() {
+      if (loaderInterval) {
+        clearInterval(loaderInterval);
+        loaderInterval = null;
+      }
+    }
+
+    function startMapAnimation() {
+      if (mapAnimationInterval) clearInterval(mapAnimationInterval);
+      mapAnimationFrame = 0;
+      mapAnimationInterval = setInterval(() => {
+        mapAnimationFrame = (mapAnimationFrame + 1) % mapAnimationSequence.length;
+        draw(); // Обновляем канвас при смене анимации карты
+      }, 900); // 900 мс ≈ 1.11 кадра в секунду
+    }
+
+    // Обработчик для кнопки выхода
+    document.getElementById("exitButton").addEventListener("click", () => {
+      const locationScreen = document.getElementById("locationScreen");
+      const loader = document.getElementById("loader");
+      const exitButton = document.getElementById("exitButton");
+      locationScreen.style.display = "none";
+      if (animationInterval) {
+        clearInterval(animationInterval);
+        animationInterval = null;
+      }
+      stopLoaderAnimation();
+      loader.style.display = "none";
+      exitButton.style.display = "none";
+      currentZone = null; // Сбрасываем текущую зону
+      draw(); // Обновляем канвас при выходе
+      locationCtx.clearRect(0, 0, locationCanvas.width, locationCanvas.height); // Очищаем канвас локации
+    });
+
+    // Обработчик клика по канвасу для точки взаимодействия
+    function handleCanvasClick(event) {
+      if (currentZone) {
+        const rect = gameCanvas.getBoundingClientRect();
+        const clickX = event.clientX - rect.left;
+        const clickY = event.clientY - rect.top;
+        const zone = zones[currentZone];
+        const dist = Math.sqrt(
+          Math.pow(clickX - zone.interactionPoint.scrollX, 2) +
+          Math.pow(clickY - zone.interactionPoint.scrollY, 2)
+        );
+        if (dist <= interactionPoint.radius) {
+          showQuestion(zone.question);
+        }
+      }
+    }
+
+    function showQuestion(question) {
+      const modal = document.getElementById("questionModal");
+      const questionText = document.getElementById("questionText");
+      questionText.textContent = question;
+      modal.style.display = "block";
+    }
+
+    document.getElementById("closeQuestion").addEventListener("click", () => {
+      document.getElementById("questionModal").style.display = "none";
+    });
+
+    document.getElementById("startScreen").style.display = "block";
+    document.getElementById("gameCanvas").style.display = "none";
+
+    function startGame() {
+      loadPlayerImage();
+    }
+  </script>
+<link href="https://fonts.cdnfonts.com/css/Press-Start-2P" rel="stylesheet">
+</body>
+</html>
