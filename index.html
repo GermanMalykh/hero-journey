@@ -130,7 +130,44 @@
       z-index: 15;
       box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
     }
-    #closeQuestion {
+    #questionText {
+      white-space: pre-line;
+    }
+    #discussionModal {
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 400px;
+      padding: 20px;
+      background: rgba(255, 255, 255, 0.9);
+      border: 2px solid #FFD700;
+      color: #000;
+      font-family: 'Press Start 2P', cursive;
+      font-size: 16px;
+      text-align: center;
+      z-index: 15;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+    }
+    #congratsModal {
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 400px;
+      padding: 20px;
+      background: rgba(255, 255, 255, 0.9);
+      border: 2px solid #FFD700;
+      color: #000;
+      font-family: 'Press Start 2P', cursive;
+      font-size: 16px;
+      text-align: center;
+      z-index: 15;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+    }
+    #closeQuestion, #yesButton, #noButton, #closeCongrats {
       margin-top: 10px;
       padding: 5px 10px;
       font-family: 'Press Start 2P', cursive;
@@ -140,7 +177,7 @@
       border: 2px solid #000;
       cursor: pointer;
     }
-    #closeQuestion:hover {
+    #closeQuestion:hover, #yesButton:hover, #noButton:hover, #closeCongrats:hover {
       background-color: #FFC107;
     }
     #scrollImg {
@@ -152,6 +189,23 @@
       transform: translate(-50%, -50%);
       width: auto;
       height: auto;
+    }
+    #controls {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      z-index: 15;
+      font-family: 'Press Start 2P', cursive;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    #controls label {
+      font-size: 12px;
+    }
+    #controls input[type="range"] {
+      width: 100px;
     }
   </style>
 </head>
@@ -178,7 +232,27 @@
     <p id="questionText"></p>
     <button id="closeQuestion">Закрыть</button>
 </div>
+<div id="discussionModal">
+    <p>Вопрос был обсужден до конца?</p>
+    <button id="yesButton">Да</button>
+    <button id="noButton">Нет</button>
+</div>
+<div id="congratsModal">
+    <p id="congratsTitle">Поздравляю! Получен "Компасс из янтаря"</p>
+    <img id="congratsImage" src="gameCanvas/items/answer/compass.png" alt="Компасс из янтаря">
+    <p id="congratsDesc">Он усиливает способность принимать решения при недостатке данных и выбираться из состояния «застревания».</p>
+    <button id="closeCongrats">Закрыть</button>
+</div>
 <input type="text" id="goalInput" placeholder="Ваша главная цель/ожидание" />
+<div id="controls">
+    <label for="speedSlider">Скорость персонажа:</label>
+    <input type="range" id="speedSlider" min="5" max="20" value="10.0" step="0.5">
+    <label for="volumeSlider">Громкость музыки:</label>
+    <input type="range" id="volumeSlider" min="0" max="1" value="0.15" step="0.1">
+</div>
+<audio id="backgroundMusic" loop>
+    <source src="sounds/Breaking Point - Ian Post.mp3" type="audio/mp3">
+</audio>
 <script>
     let gameStarted = false;
     let character = null;
@@ -186,17 +260,45 @@
     const animationSequence = [0, 1, 2, 1, 0]; // Цикл: Кадр 1 → 2 → 3 → 2 → 1
     let animationIndex = 0;
     let locationAnimationFrame = 0;
-    const locationAnimationSequence = [1, 0, 1, 2, 1, 0]; // Цикл: forest2 → forest1 → forest2 → forest3 → forest2 → forest1
     let animationInterval = null;
     let fieldAnimationTimeout = null; // Таймаут для анимации на поле
     let mapAnimationFrame = 0;
-    const mapAnimationSequence = [0, 1, 2]; // Цикл: map1 → map2 → map3
+    let mapAnimationSequence = [0, 1, 2]; // Начальная последовательность: map1 → map2 → map3
     let mapAnimationInterval = null;
     let loaderInterval = null;
     let currentZone = null; // Для отслеживания текущей локации
     let interactionPoint = { x: 0, y: 0, radius: 20 }; // Координаты и радиус точки взаимодействия
     const scrollImg = document.getElementById("scrollImg");
     scrollImg.style.display = "none";
+    const completedZones = {
+      forest: false,
+      motivation_cave: false,
+      blocker_cave: false,
+      feedback_temple: false,
+      tower_of_awareness: false
+    };
+    const items = {
+      forest: {
+        has: false,
+        img: new Image()
+      },
+      motivation_cave: {
+        has: false,
+        img: new Image()
+      },
+      blocker_cave: {
+        has: false,
+        img: new Image()
+      },
+      feedback_temple: {
+        has: false,
+        img: new Image()
+      }
+    };
+    items.forest.img.src = 'gameCanvas/items/answer/compass.png';
+    items.motivation_cave.img.src = 'gameCanvas/items/answer/torch.png';
+    items.blocker_cave.img.src = 'gameCanvas/items/answer/key.png';
+    items.feedback_temple.img.src = 'gameCanvas/items/answer/mirror.png';
 
     // Отрисовка анимированных персонажей на стартовом экране
     const knightCanvas = document.getElementById("knightCanvas");
@@ -233,6 +335,38 @@
     forestFrames[1].src = 'gameCanvas/locations/forest/forest2.png';
     forestFrames[2].src = 'gameCanvas/locations/forest/forest3.png';
 
+    const motivationCaveFrames = [
+      new Image(),
+      new Image()
+    ];
+
+    motivationCaveFrames[0].src = 'gameCanvas/locations/motivation_cave/motivation_cave1.png';
+    motivationCaveFrames[1].src = 'gameCanvas/locations/motivation_cave/motivation_cave2.png';
+
+    const blockerCaveFrames = [
+      new Image(),
+      new Image()
+    ];
+
+    blockerCaveFrames[0].src = 'gameCanvas/locations/blocker_cave/blocker_cave1.png';
+    blockerCaveFrames[1].src = 'gameCanvas/locations/blocker_cave/blocker_cave2.png';
+
+    const feedbackTempleFrames = [
+      new Image(),
+      new Image()
+    ];
+
+    feedbackTempleFrames[0].src = 'gameCanvas/locations/feedback_temple/feedback_temple1.png';
+    feedbackTempleFrames[1].src = 'gameCanvas/locations/feedback_temple/feedback_temple2.png';
+
+    const towerAwarenessFrames = [
+      new Image(),
+      new Image()
+    ];
+
+    towerAwarenessFrames[0].src = 'gameCanvas/locations/tower_of_awareness/tower_of_awareness1.png';
+    towerAwarenessFrames[1].src = 'gameCanvas/locations/tower_of_awareness/tower_of_awareness2.png';
+
     const mapFrames = [
       new Image(),
       new Image(),
@@ -243,12 +377,22 @@
     mapFrames[1].src = 'gameCanvas/locations/map/map2.png';
     mapFrames[2].src = 'gameCanvas/locations/map/map3.png';
 
+    const finalMapFrames = [
+      new Image(),
+      new Image(),
+      new Image()
+    ];
+
+    finalMapFrames[0].src = 'gameCanvas/locations/map/map4.png';
+    finalMapFrames[1].src = 'gameCanvas/locations/map/map5.png';
+    finalMapFrames[2].src = 'gameCanvas/locations/map/map6.png';
+
     let allImagesLoaded = false;
     let loadedCount = 0;
 
     function checkImagesLoaded() {
       loadedCount++;
-      if (loadedCount === 12) { // 3 кадра для каждого персонажа + 3 для леса + 3 для карты
+      if (loadedCount === 23) { // 3 кадра для каждого персонажа + 3 для леса + 2 для motivation_cave + 2 для blocker_cave + 2 для feedback_temple + 2 для tower_of_awareness + 3 для карты + 3 для финальной карты
         allImagesLoaded = true;
         animateStartScreen();
       }
@@ -257,7 +401,12 @@
     knightFrames.forEach(img => img.onload = checkImagesLoaded);
     princessFrames.forEach(img => img.onload = checkImagesLoaded);
     forestFrames.forEach(img => img.onload = checkImagesLoaded);
+    motivationCaveFrames.forEach(img => img.onload = checkImagesLoaded);
+    blockerCaveFrames.forEach(img => img.onload = checkImagesLoaded);
+    feedbackTempleFrames.forEach(img => img.onload = checkImagesLoaded);
+    towerAwarenessFrames.forEach(img => img.onload = checkImagesLoaded);
     mapFrames.forEach(img => img.onload = checkImagesLoaded);
+    finalMapFrames.forEach(img => img.onload = checkImagesLoaded);
 
     function drawKnightFrame() {
       if (!allImagesLoaded) return;
@@ -293,15 +442,16 @@
     const gameCtx = gameCanvas.getContext("2d");
     let playerX = 50;
     let playerY = 300;
-    const playerSpeed = 7.5; // Увеличена скорость в 1.5 раза, можно корректировать здесь
+    let playerSpeed = 7.5; // Увеличена скорость в 1.5 раза, можно корректировать здесь
     let playerImg = null;
     let animationIndexField = 0; // Индекс анимации стояния на поле
 
     const zones = {
-      forest: { x: 315, y: 540, w: 420, h: 70, question: "Какие задачи кажутся тебе размытыми или плохо сформулированными?", bgFrames: forestFrames, interactionPoint: { x: 525, y: 575, scrollX: 180, scrollY: 580 } },
-      motivation_cave: { x: 44, y: 630, w: 200, h: 70, question: "Чего тебе не хватает, чтобы быть более вовлечённым?", bg: "gameCanvas/locations/motivation_cave.png", interactionPoint: { x: 144, y: 665, scrollX: 144, scrollY: 665 } },
-      blocker_cave: { x: 820, y: 780, w: 280, h: 70, question: "Что мешает тебе работать эффективно?", bg: "gameCanvas/locations/blocker_cave.png", interactionPoint: { x: 960, y: 815, scrollX: 960, scrollY: 815 } },
-      feedback_temple: { x: 900, y: 250, w: 280, h: 70, question: "Что ты хотел бы изменить в команде или в моём подходе?", bg: "gameCanvas/locations/feedback_temple.png", interactionPoint: { x: 1040, y: 285, scrollX: 1040, scrollY: 285 } }
+      forest: { x: 315, y: 540, w: 420, h: 70, question: "Какие задачи кажутся тебе размытыми или плохо сформулированными?", bgFrames: forestFrames, animationSequence: [1, 0, 1, 2, 1, 0], interactionPoint: { x: 525, y: 575, scrollX: 190, scrollY: 720 } },
+      motivation_cave: { x: 44, y: 630, w: 200, h: 70, question: "Чего тебе не хватает, чтобы быть более вовлечённым?", bgFrames: motivationCaveFrames, animationSequence: [0, 1, 0, 1], interactionPoint: { x: 144, y: 665, scrollX: 730, scrollY: 1260 } },
+      blocker_cave: { x: 820, y: 780, w: 280, h: 70, question: "Что мешает тебе работать эффективно?", bgFrames: blockerCaveFrames, animationSequence: [0, 1, 0, 1], interactionPoint: { x: 960, y: 815, scrollX: 700, scrollY: 1215 } },
+      feedback_temple: { x: 900, y: 250, w: 280, h: 70, question: "Что ты хотел бы изменить в команде или в моём подходе?", bgFrames: feedbackTempleFrames, animationSequence: [0, 1, 0, 1], interactionPoint: { x: 1040, y: 285, scrollX: 900, scrollY: 1100 } },
+      tower_of_awareness: { x: 1100, y: 630, w: 280, h: 70, bgFrames: towerAwarenessFrames, animationSequence: [0, 1, 0, 1], interactionPoint: { x: 1240, y: 665, scrollX: 790, scrollY: 950 } }
     };
 
     function loadPlayerImage() {
@@ -313,9 +463,11 @@
     }
 
     function drawZones() {
-      gameCtx.globalAlpha = 0; // Прозрачность для всех зон
+      const allItemsObtained = Object.values(items).every(i => i.has);
       for (let zoneName in zones) {
+        if (zoneName === "tower_of_awareness" && !allItemsObtained) continue;
         const zone = zones[zoneName];
+        gameCtx.globalAlpha = 0; // Прозрачность для всех зон
         gameCtx.fillStyle = '#000000';
         gameCtx.fillRect(zone.x, zone.y, zone.w, zone.h);
       }
@@ -380,8 +532,11 @@
 
     function draw() {
       gameCtx.clearRect(0, 0, gameCanvas.width, gameCanvas.height);
+      const allItemsObtained = Object.values(items).every(i => i.has);
+      const currentMapFrames = allItemsObtained ? finalMapFrames : mapFrames;
+      mapAnimationSequence = allItemsObtained ? [0, 1, 2, 1] : [0, 1, 2]; // Переключаем последовательность анимации карты
       if (allImagesLoaded) {
-        gameCtx.drawImage(mapFrames[mapAnimationFrame], 0, 0, gameCanvas.width, gameCanvas.height); // Анимированный фон карты
+        gameCtx.drawImage(currentMapFrames[mapAnimationSequence[mapAnimationFrame]], 0, 0, gameCanvas.width, gameCanvas.height); // Анимированный фон карты
       } else {
         gameCtx.fillStyle = "#B9A460"; // Зелёный фон как запасной
         gameCtx.fillRect(0, 0, gameCanvas.width, gameCanvas.height);
@@ -398,18 +553,41 @@
         const standFrame = character === "knight" ? knightFrames[animationSequence[animationIndexField]] : princessFrames[animationSequence[animationIndexField]];
         gameCtx.drawImage(standFrame, playerX, playerY, 120, 154); // Уменьшено на 15% (120x154)
       }
+      let itemX = 10;
+      for (let zone in items) {
+        if (items[zone].has) {
+          gameCtx.drawImage(items[zone].img, itemX, 10, 50, 50);
+          itemX += 60;
+        }
+      }
       requestAnimationFrame(draw);
     }
 
     function checkCollisions() {
+      const allItemsObtained = Object.values(items).every(i => i.has);
       for (let zoneName in zones) {
+        if (zoneName === "tower_of_awareness" && !allItemsObtained) continue;
         const zone = zones[zoneName];
         if (playerX + 120 > zone.x && playerX < zone.x + zone.w && // Обновлено для 120px
             playerY + 154 > zone.y && playerY < zone.y + zone.h) { // Обновлено для 154px
           if (zoneName === "goal_zone") {
             document.getElementById("locationScreen").style.display = "none";
             document.getElementById("goalInput").style.display = "block";
-          } else {
+          } else if (zoneName === "tower_of_awareness") {
+            if (!completedZones["tower_of_awareness"]) {
+              const locationScreen = document.getElementById("locationScreen");
+              const locationImage = document.getElementById("locationImage");
+              const loader = document.getElementById("loader");
+              const exitButton = document.getElementById("exitButton");
+              locationScreen.style.display = "flex";
+              loader.style.display = "block"; // Показываем лоадер
+              locationImage.style.display = "none"; // Скрываем изображение до загрузки
+              exitButton.style.display = "block"; // Показываем кнопку
+              startLoaderAnimation(); // Запускаем анимацию лоадера
+              currentZone = zoneName; // Устанавливаем текущую зону
+              startLocationAnimation(zone.bgFrames, zone.animationSequence);
+            }
+          } else if (!(zoneName in completedZones) || !completedZones[zoneName]) {
             const locationScreen = document.getElementById("locationScreen");
             const locationImage = document.getElementById("locationImage");
             const loader = document.getElementById("loader");
@@ -420,8 +598,8 @@
             exitButton.style.display = "block"; // Показываем кнопку
             startLoaderAnimation(); // Запускаем анимацию лоадера
             currentZone = zoneName; // Устанавливаем текущую зону
-            if (zoneName === "forest" && zone.bgFrames) {
-              startLocationAnimation(zone.bgFrames);
+            if (zone.bgFrames) {
+              startLocationAnimation(zone.bgFrames, zone.animationSequence);
             } else if (zone.bg) {
               const tempImage = new Image();
               tempImage.onload = () => {
@@ -441,7 +619,7 @@
       }
     }
 
-    function startLocationAnimation(frames) {
+    function startLocationAnimation(frames, sequence) {
       if (animationInterval) clearInterval(animationInterval);
       locationAnimationFrame = 0;
       const locationImage = document.getElementById("locationImage");
@@ -461,12 +639,12 @@
         };
         animationInterval = setInterval(() => {
           if (document.getElementById("locationScreen").style.display === "flex") {
-            locationAnimationFrame = (locationAnimationFrame + 1) % locationAnimationSequence.length;
-            const frameIndex = locationAnimationSequence[locationAnimationFrame];
+            locationAnimationFrame = (locationAnimationFrame + 1) % sequence.length;
+            const frameIndex = sequence[locationAnimationFrame];
             locationImage.src = frames[frameIndex].src;
           }
         }, 900); // 900 мс ≈ 1.11 кадра в секунду
-        const frameIndex = locationAnimationSequence[locationAnimationFrame];
+        const frameIndex = sequence[locationAnimationFrame];
         locationImage.src = frames[frameIndex].src;
       };
       tempImage.src = frames[0].src; // Запускаем загрузку первого кадра
@@ -518,7 +696,9 @@
 
     // Обработчик клика по скроллу
     scrollImg.addEventListener("click", () => {
-      if (currentZone) {
+      if (currentZone === "tower_of_awareness") {
+        showFinalMessage();
+      } else if (currentZone) {
         showQuestion(zones[currentZone].question);
       }
     });
@@ -528,15 +708,14 @@
         const zone = zones[currentZone];
         const image = document.getElementById("locationImage");
         const rect = image.getBoundingClientRect();
-        const scaleX = rect.width / 1400; // Исходный размер канваса
-        const scaleY = rect.height / 1050;
-        // Эти строки настраивают позицию скролла (scrollImg). Корректируйте значения scrollX и scrollY в объекте interactionPoint для каждой зоны в объекте zones, а также смещения -50 * scaleX/Y для центрирования.
-        const left = (zone.interactionPoint.scrollX * scaleX) + rect.left - 50 * scaleX;
-        const top = (zone.interactionPoint.scrollY * scaleY) + rect.top - 50 * scaleY;
+        const scale = Math.min(rect.width / 1400, rect.height / 1050); // Используем минимальный масштаб для сохранения пропорций
+        // Эти строки настраивают позицию и размер скролла (scrollImg). Размер уменьшен до 80 пикселей для сужения.
+        const left = (zone.interactionPoint.scrollX * scale) + rect.left - (80 * scale) / 2;
+        const top = (zone.interactionPoint.scrollY * scale) + rect.top - (80 * scale) / 2;
         scrollImg.style.left = left + 'px';
         scrollImg.style.top = top + 'px';
-        scrollImg.style.width = (100 * scaleX) + 'px';
-        scrollImg.style.height = (100 * scaleY) + 'px';
+        scrollImg.style.width = (80 * scale) + 'px'; // Уменьшенный размер
+        scrollImg.style.height = (80 * scale) + 'px'; // Пропорционально
         scrollImg.style.display = "block";
       }
     }
@@ -548,8 +727,73 @@
       modal.style.display = "block";
     }
 
+    function showFinalMessage() {
+      const modal = document.getElementById("questionModal");
+      const questionText = document.getElementById("questionText");
+      questionText.textContent = "Поздравляю, герой команды! Ты прошёл все испытания и обсудил важные вопросы, которые сделали тебя сильнее и осознаннее.\n\nТеперь, с Компассом из янтаря, Пылающим факелом, Ключом из обсидиана и Зеркалом истины, ты готов идти к новым вершинам.\n\nПомни:\nРазмытые задачи — проясняются,\nМотивация — просыпается,\nБлокеры — отступают,\nА обратная связь — превращается в рост.\n\nТвоя осознанность — это суперсила.\nСпасибо за честный разговор. До новых 1-1 и приключений!";
+      modal.style.display = "block";
+    }
+
     document.getElementById("closeQuestion").addEventListener("click", () => {
       document.getElementById("questionModal").style.display = "none";
+      if (currentZone === "tower_of_awareness") {
+        completedZones[currentZone] = true;
+      } else if (currentZone === "forest" || currentZone === "motivation_cave" || currentZone === "blocker_cave" || currentZone === "feedback_temple") {
+        document.getElementById("discussionModal").style.display = "block";
+      }
+    });
+
+    document.getElementById("noButton").addEventListener("click", () => {
+      document.getElementById("discussionModal").style.display = "none";
+      if (currentZone) {
+        showQuestion(zones[currentZone].question);
+      }
+    });
+
+    document.getElementById("yesButton").addEventListener("click", () => {
+      document.getElementById("discussionModal").style.display = "none";
+      if (currentZone === "forest") {
+        document.getElementById("congratsTitle").textContent = 'Поздравляю! Получен "Компасс из янтаря!"';
+        document.getElementById("congratsImage").src = 'gameCanvas/items/answer/compass.png';
+        document.getElementById("congratsDesc").textContent = 'Он усиливает способность принимать решения при недостатке данных и выбираться из состояния «застревания»';
+      } else if (currentZone === "motivation_cave") {
+        document.getElementById("congratsTitle").textContent = 'Поздравляю! Получен "Пылающий факел!"';
+        document.getElementById("congratsImage").src = 'gameCanvas/items/answer/torch.png';
+        document.getElementById("congratsDesc").textContent = 'Он увеличивает устойчивость к выгоранию, вдохновляет на достижение целей, помогает вспоминать «зачем я это делаю»';
+      } else if (currentZone === "blocker_cave") {
+        document.getElementById("congratsTitle").textContent = 'Поздравляю! Получен "Ключ из обсидиана!"';
+        document.getElementById("congratsImage").src = 'gameCanvas/items/answer/key.png';
+        document.getElementById("congratsDesc").textContent = 'Он даёт возможность обходить, разрушать или грамотно решать блокеры и препятствия в проектах';
+      } else if (currentZone === "feedback_temple") {
+        document.getElementById("congratsTitle").textContent = 'Поздравляю! Получено "Зеркало истины!"';
+        document.getElementById("congratsImage").src = 'gameCanvas/items/answer/mirror.png';
+        document.getElementById("congratsDesc").textContent = 'Оно помогает видеть себя и других ясно, усиливает культуру обратной связи и развитие команды';
+      }
+      completedZones[currentZone] = true;
+      items[currentZone].has = true;
+      document.getElementById("congratsModal").style.display = "block";
+      if (Object.values(items).every(i => i.has)) {
+        mapAnimationFrame = 0; // Сбрасываем анимацию для новой карты
+      }
+      draw(); // Обновляем канвас для отображения иконки
+    });
+
+    document.getElementById("closeCongrats").addEventListener("click", () => {
+      document.getElementById("congratsModal").style.display = "none";
+      const locationScreen = document.getElementById("locationScreen");
+      const loader = document.getElementById("loader");
+      const exitButton = document.getElementById("exitButton");
+      locationScreen.style.display = "none";
+      if (animationInterval) {
+        clearInterval(animationInterval);
+        animationInterval = null;
+      }
+      stopLoaderAnimation();
+      loader.style.display = "none";
+      exitButton.style.display = "none";
+      scrollImg.style.display = "none";
+      currentZone = null; // Сбрасываем текущую зону
+      draw(); // Обновляем канвас при выходе
     });
 
     document.getElementById("startScreen").style.display = "block";
@@ -557,6 +801,15 @@
 
     function startGame() {
       loadPlayerImage();
+      const music = document.getElementById("backgroundMusic");
+      music.volume = 0.3;
+      music.play();
+      document.getElementById("speedSlider").addEventListener("input", (e) => {
+        playerSpeed = parseFloat(e.target.value);
+      });
+      document.getElementById("volumeSlider").addEventListener("input", (e) => {
+        music.volume = parseFloat(e.target.value);
+      });
     }
   </script>
 <link href="https://fonts.cdnfonts.com/css/Press-Start-2P" rel="stylesheet">
