@@ -45,16 +45,8 @@
       object-fit: contain;
       display: none; /* Скрываем до загрузки */
     }
-    #locationCanvas {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 1400px;
-      height: 1050px;
-      background: transparent; /* Устанавливаем прозрачный фон */
-      z-index: 11; /* Над #locationImage */
-    }
     #locationDialog {
+      display: none; /* Скрываем диалог с вопросом */
       width: 300px;
       height: 100px;
       border: 1px solid #fff;
@@ -114,7 +106,7 @@
       color: #000;
       background-color: #FFD700;
       border: 2px solid #000;
-      text-shadow: -1px -1px 0 #FFD700, 1px -1px 0 #FFD700, -1px 1px 0 #FFD700, 1px 1px 0 #FFD700;
+      text-shadow: -1px -1px 0 #FFD700, 1px -1px 0 #FFD700, -1px 1px 0 #FFD700, 1px 1px 0 #000;
       cursor: pointer;
       z-index: 14;
     }
@@ -151,6 +143,16 @@
     #closeQuestion:hover {
       background-color: #FFC107;
     }
+    #scrollImg {
+      display: none;
+      position: absolute;
+      cursor: pointer;
+      left: 0;
+      top: 0;
+      transform: translate(-50%, -50%);
+      width: auto;
+      height: auto;
+    }
   </style>
 </head>
 <body>
@@ -164,8 +166,10 @@
 </div>
 <canvas id="gameCanvas" width="1400" height="1050"></canvas>
 <div id="locationScreen">
-    <img id="locationImage" alt="">
-    <canvas id="locationCanvas" width="1400" height="1050"></canvas>
+    <div id="locationContainer">
+        <img id="locationImage" alt="">
+        <img id="scrollImg" src="gameCanvas/items/question/Scroll1.png">
+    </div>
     <div id="locationDialog"></div>
     <div id="loader"></div>
     <button id="exitButton">Вернуться к карте</button>
@@ -191,7 +195,8 @@
     let loaderInterval = null;
     let currentZone = null; // Для отслеживания текущей локации
     let interactionPoint = { x: 0, y: 0, radius: 20 }; // Координаты и радиус точки взаимодействия
-    const scrollImage = new Image(); // Изображение скролла
+    const scrollImg = document.getElementById("scrollImg");
+    scrollImg.style.display = "none";
 
     // Отрисовка анимированных персонажей на стартовом экране
     const knightCanvas = document.getElementById("knightCanvas");
@@ -243,7 +248,7 @@
 
     function checkImagesLoaded() {
       loadedCount++;
-      if (loadedCount === 13) { // 3 кадра для каждого персонажа + 3 для леса + 3 для карты + 1 для скролла
+      if (loadedCount === 12) { // 3 кадра для каждого персонажа + 3 для леса + 3 для карты
         allImagesLoaded = true;
         animateStartScreen();
       }
@@ -253,8 +258,6 @@
     princessFrames.forEach(img => img.onload = checkImagesLoaded);
     forestFrames.forEach(img => img.onload = checkImagesLoaded);
     mapFrames.forEach(img => img.onload = checkImagesLoaded);
-    scrollImage.onload = checkImagesLoaded;
-    scrollImage.src = 'gameCanvas/items/question/Scroll1.png'; // Загружаем изображение скролла
 
     function drawKnightFrame() {
       if (!allImagesLoaded) return;
@@ -295,7 +298,7 @@
     let animationIndexField = 0; // Индекс анимации стояния на поле
 
     const zones = {
-      forest: { x: 315, y: 540, w: 420, h: 70, question: "Какие задачи кажутся тебе размытыми или плохо сформулированными?", bgFrames: forestFrames, interactionPoint: { x: 525, y: 575, scrollX: 855, scrollY: 580 } },
+      forest: { x: 315, y: 540, w: 420, h: 70, question: "Какие задачи кажутся тебе размытыми или плохо сформулированными?", bgFrames: forestFrames, interactionPoint: { x: 525, y: 575, scrollX: 180, scrollY: 580 } },
       motivation_cave: { x: 44, y: 630, w: 200, h: 70, question: "Чего тебе не хватает, чтобы быть более вовлечённым?", bg: "gameCanvas/locations/motivation_cave.png", interactionPoint: { x: 144, y: 665, scrollX: 144, scrollY: 665 } },
       blocker_cave: { x: 820, y: 780, w: 280, h: 70, question: "Что мешает тебе работать эффективно?", bg: "gameCanvas/locations/blocker_cave.png", interactionPoint: { x: 960, y: 815, scrollX: 960, scrollY: 815 } },
       feedback_temple: { x: 900, y: 250, w: 280, h: 70, question: "Что ты хотел бы изменить в команде или в моём подходе?", bg: "gameCanvas/locations/feedback_temple.png", interactionPoint: { x: 1040, y: 285, scrollX: 1040, scrollY: 285 } }
@@ -317,26 +320,6 @@
         gameCtx.fillRect(zone.x, zone.y, zone.w, zone.h);
       }
       gameCtx.globalAlpha = 1.0; // Восстанавливаем прозрачность
-      if (currentZone) {
-        const zone = zones[currentZone];
-        // Отрисовка скролла перенесена в locationCanvas
-      } else {
-        console.log("currentZone не определён"); // Проверка
-      }
-    }
-
-    const locationCanvas = document.getElementById("locationCanvas");
-    const locationCtx = locationCanvas.getContext("2d");
-
-    function drawLocationZones() {
-      locationCtx.clearRect(0, 0, locationCanvas.width, locationCanvas.height); // Очищаем канвас перед отрисовкой
-      if (currentZone && document.getElementById("locationImage").style.display === "block" && document.getElementById("loader").style.display === "none") { // Рисуем только после загрузки фона и исчезновения лоадера
-        const zone = zones[currentZone];
-        locationCtx.drawImage(scrollImage, zone.interactionPoint.scrollX - 50, zone.interactionPoint.scrollY - 50, 100, 100); // Увеличенный размер скролла
-        console.log(`Отрисовка скролла для ${currentZone} в (${zone.interactionPoint.scrollX}, ${zone.interactionPoint.scrollY}) с размером 100x100`); // Отладка
-      } else {
-        console.log("Скролл не отрисован: фон не загружен или лоадер активен");
-      }
     }
 
     function startMapAnimation() {
@@ -391,7 +374,6 @@
       };
 
       document.addEventListener("keydown", handleKeyDown);
-      gameCanvas.addEventListener("click", handleCanvasClick); // Обработчик клика по канвасу
       startMapAnimation(); // Запускаем анимацию карты
       gameStarted = true;
     }
@@ -399,7 +381,7 @@
     function draw() {
       gameCtx.clearRect(0, 0, gameCanvas.width, gameCanvas.height);
       if (allImagesLoaded) {
-        gameCtx.drawImage(mapFrames[mapAnimationSequence[mapAnimationFrame]], 0, 0, gameCanvas.width, gameCanvas.height); // Анимированный фон карты
+        gameCtx.drawImage(mapFrames[mapAnimationFrame], 0, 0, gameCanvas.width, gameCanvas.height); // Анимированный фон карты
       } else {
         gameCtx.fillStyle = "#B9A460"; // Зелёный фон как запасной
         gameCtx.fillRect(0, 0, gameCanvas.width, gameCanvas.height);
@@ -424,7 +406,6 @@
         const zone = zones[zoneName];
         if (playerX + 120 > zone.x && playerX < zone.x + zone.w && // Обновлено для 120px
             playerY + 154 > zone.y && playerY < zone.y + zone.h) { // Обновлено для 154px
-          console.log(`Соприкосновение с зоной: ${zoneName}, currentZone: ${currentZone}`); // Отладка
           if (zoneName === "goal_zone") {
             document.getElementById("locationScreen").style.display = "none";
             document.getElementById("goalInput").style.display = "block";
@@ -434,23 +415,23 @@
             const loader = document.getElementById("loader");
             const exitButton = document.getElementById("exitButton");
             locationScreen.style.display = "flex";
-            document.getElementById("locationDialog").textContent = zone.question;
             loader.style.display = "block"; // Показываем лоадер
             locationImage.style.display = "none"; // Скрываем изображение до загрузки
             exitButton.style.display = "block"; // Показываем кнопку
             startLoaderAnimation(); // Запускаем анимацию лоадера
             currentZone = zoneName; // Устанавливаем текущую зону
-            console.log(`Установлена зона: ${currentZone}, лоадер активен`); // Отладка
             if (zoneName === "forest" && zone.bgFrames) {
               startLocationAnimation(zone.bgFrames);
             } else if (zone.bg) {
               const tempImage = new Image();
               tempImage.onload = () => {
+                locationImage.onload = () => {
+                  locationImage.style.display = "block"; // Показываем изображение после загрузки
+                  stopLoaderAnimation(); // Останавливаем анимацию лоадера
+                  loader.style.display = "none"; // Скрываем лоадер
+                  updateScrollPosition(); // Обновляем позицию скролла после загрузки фона
+                };
                 locationImage.src = zone.bg;
-                locationImage.style.display = "block"; // Показываем изображение после загрузки
-                stopLoaderAnimation(); // Останавливаем анимацию лоадера
-                loader.style.display = "none"; // Скрываем лоадер
-                drawLocationZones(); // Обновляем канвас локации только после загрузки фона
               };
               tempImage.src = zone.bg; // Запускаем загрузку
             }
@@ -472,19 +453,21 @@
       startLoaderAnimation(); // Запускаем анимацию лоадера
       const tempImage = new Image();
       tempImage.onload = () => {
+        locationImage.onload = () => {
+          locationImage.style.display = "block"; // Показываем анимацию после загрузки первого кадра
+          stopLoaderAnimation(); // Останавливаем анимацию лоадера
+          loader.style.display = "none"; // Скрываем лоадер
+          updateScrollPosition(); // Обновляем позицию скролла после загрузки
+        };
         animationInterval = setInterval(() => {
           if (document.getElementById("locationScreen").style.display === "flex") {
             locationAnimationFrame = (locationAnimationFrame + 1) % locationAnimationSequence.length;
             const frameIndex = locationAnimationSequence[locationAnimationFrame];
             locationImage.src = frames[frameIndex].src;
-            if (locationAnimationFrame === locationAnimationSequence.length - 1) { // После последнего кадра
-              locationImage.style.display = "block"; // Убеждаемся, что фон виден
-              stopLoaderAnimation(); // Останавливаем анимацию лоадера
-              loader.style.display = "none"; // Скрываем лоадер
-              drawLocationZones(); // Рисуем скролл после завершения анимации
-            }
           }
         }, 900); // 900 мс ≈ 1.11 кадра в секунду
+        const frameIndex = locationAnimationSequence[locationAnimationFrame];
+        locationImage.src = frames[frameIndex].src;
       };
       tempImage.src = frames[0].src; // Запускаем загрузку первого кадра
     }
@@ -528,25 +511,33 @@
       stopLoaderAnimation();
       loader.style.display = "none";
       exitButton.style.display = "none";
+      scrollImg.style.display = "none";
       currentZone = null; // Сбрасываем текущую зону
       draw(); // Обновляем канвас при выходе
-      locationCtx.clearRect(0, 0, locationCanvas.width, locationCanvas.height); // Очищаем канвас локации
     });
 
-    // Обработчик клика по канвасу для точки взаимодействия
-    function handleCanvasClick(event) {
+    // Обработчик клика по скроллу
+    scrollImg.addEventListener("click", () => {
       if (currentZone) {
-        const rect = gameCanvas.getBoundingClientRect();
-        const clickX = event.clientX - rect.left;
-        const clickY = event.clientY - rect.top;
+        showQuestion(zones[currentZone].question);
+      }
+    });
+
+    function updateScrollPosition() {
+      if (currentZone) {
         const zone = zones[currentZone];
-        const dist = Math.sqrt(
-          Math.pow(clickX - zone.interactionPoint.scrollX, 2) +
-          Math.pow(clickY - zone.interactionPoint.scrollY, 2)
-        );
-        if (dist <= interactionPoint.radius) {
-          showQuestion(zone.question);
-        }
+        const image = document.getElementById("locationImage");
+        const rect = image.getBoundingClientRect();
+        const scaleX = rect.width / 1400; // Исходный размер канваса
+        const scaleY = rect.height / 1050;
+        // Эти строки настраивают позицию скролла (scrollImg). Корректируйте значения scrollX и scrollY в объекте interactionPoint для каждой зоны в объекте zones, а также смещения -50 * scaleX/Y для центрирования.
+        const left = (zone.interactionPoint.scrollX * scaleX) + rect.left - 50 * scaleX;
+        const top = (zone.interactionPoint.scrollY * scaleY) + rect.top - 50 * scaleY;
+        scrollImg.style.left = left + 'px';
+        scrollImg.style.top = top + 'px';
+        scrollImg.style.width = (100 * scaleX) + 'px';
+        scrollImg.style.height = (100 * scaleY) + 'px';
+        scrollImg.style.display = "block";
       }
     }
 
