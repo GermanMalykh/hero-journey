@@ -445,6 +445,7 @@
     let playerSpeed = 7.5; // Увеличена скорость в 1.5 раза, можно корректировать здесь
     let playerImg = null;
     let animationIndexField = 0; // Индекс анимации стояния на поле
+    let isInLocation = false; // Новый флаг для отключения клавиатуры в локации
 
     const zones = {
       forest: { x: 315, y: 540, w: 420, h: 70, question: "Какие задачи кажутся тебе размытыми или плохо сформулированными?", bgFrames: forestFrames, animationSequence: [1, 0, 1, 2, 1, 0], interactionPoint: { x: 525, y: 575, scrollX: 190, scrollY: 720 } },
@@ -489,7 +490,7 @@
 
       // Движение персонажа с альтернативой WASD
       const handleKeyDown = (e) => {
-        if (!gameStarted) return;
+        if (!gameStarted || isInLocation) return; // Отключаем клавиатуру в локации
         let moved = false;
         switch (e.key) {
           case "ArrowLeft":
@@ -586,6 +587,7 @@
               startLoaderAnimation(); // Запускаем анимацию лоадера
               currentZone = zoneName; // Устанавливаем текущую зону
               startLocationAnimation(zone.bgFrames, zone.animationSequence);
+              isInLocation = true; // Отключаем клавиатуру
             }
           } else if (!(zoneName in completedZones) || !completedZones[zoneName]) {
             const locationScreen = document.getElementById("locationScreen");
@@ -613,6 +615,7 @@
               };
               tempImage.src = zone.bg; // Запускаем загрузку
             }
+            isInLocation = true; // Отключаем клавиатуру
           }
           break; // Выходим из цикла после первого совпадения
         }
@@ -692,6 +695,7 @@
       scrollImg.style.display = "none";
       currentZone = null; // Сбрасываем текущую зону
       draw(); // Обновляем канвас при выходе
+      isInLocation = false; // Включаем клавиатуру обратно
     });
 
     // Обработчик клика по скроллу
@@ -794,6 +798,7 @@
       scrollImg.style.display = "none";
       currentZone = null; // Сбрасываем текущую зону
       draw(); // Обновляем канвас при выходе
+      isInLocation = false; // Включаем клавиатуру обратно
     });
 
     document.getElementById("startScreen").style.display = "block";
